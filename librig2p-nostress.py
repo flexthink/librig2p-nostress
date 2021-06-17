@@ -102,7 +102,7 @@ class GraphemeToPhoneme(datasets.GeneratorBasedBuilder):
 
         for sentence_counter, (item_id, item) in enumerate(data.items()):
             resp = {
-                "id": item["id"],
+                "id": item_id,
                 "origin": item["origin"],
                 "char": item["char"],
                 "phn": item["phn"],
