@@ -11,11 +11,9 @@ _DESCRIPTION = """\
 Grapheme-to-Phoneme training, validation and test sets
 """
 
-_TRAIN_URL = "https://raw.githubusercontent.com/flexthink/librig2p-nostress/develop/dataset/train.json"
-_VALID_URL = "https://raw.githubusercontent.com/flexthink/librig2p-nostress/develop/dataset/valid.json"
-_TEST_URL = "https://raw.githubusercontent.com/flexthink/librig2p-nostress/develop/dataset/train.json"
+_BASE_URL = "https://raw.githubusercontent.com/flexthink/librig2p-nostress/develop/dataset"
 
-_HOMEPAGE_URL = "https://raw.githubusercontent.com/flexthink/speechbrain-g2pdataset"
+_HOMEPAGE_URL = "https://github.com/flexthink/librig2p-nostress/tree/develop"
 
 _PHONEMES = [
     "AA",
@@ -58,16 +56,28 @@ _PHONEMES = [
     "Z",
     "ZH",
 ]
-_ORIGINS = ["librispeech", "timit"]
-
+_ORIGINS = ["librispeech", "librispeech-lex", "timit"]
+_NA = "N/A"
+_SPLIT_TYPES = ["train", "valid", "test"]
+_DATA_TYPES = ["lexicon", "sentence"]
+_SPLITS = [
+    f"{data_type}_{split_type}"
+    for data_type in _DATA_TYPES
+    for split_type in _SPLIT_TYPES]
 
 class GraphemeToPhoneme(datasets.GeneratorBasedBuilder):
+    def __init__(self, base_url=None, splits=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.base_url = base_url or _BASE_URL
+        self.splits = splits or _SPLITS
+
     def _info(self):
         return datasets.DatasetInfo(
             description=_DESCRIPTION,
             features=datasets.Features(
                 {
                     "id": datasets.Value("string"),
+                    "speaker_id": datasets.Value("string"),
                     "origin": datasets.ClassLabel(names=_ORIGINS),
                     "char": datasets.Value("string"),
                     "phn": datasets.Sequence(datasets.ClassLabel(names=_PHONEMES)),
@@ -77,23 +87,21 @@ class GraphemeToPhoneme(datasets.GeneratorBasedBuilder):
             homepage=_HOMEPAGE_URL,
         )
 
+    def _get_url(self, split):
+        return f'{self.base_url}/{split}.json'
+
+    def _split_generator(self, dl_manager, split):
+        url = self._get_url(split)
+        path = dl_manager.download_and_extract(url)
+        return datasets.SplitGenerator(
+            name=split,
+            gen_kwargs={"datapath": path, "datatype": split},
+        )
+
     def _split_generators(self, dl_manager):
-        train_path = dl_manager.download_and_extract(_TRAIN_URL)
-        valid_path = dl_manager.download_and_extract(_VALID_URL)
-        test_path = dl_manager.download_and_extract(_TEST_URL)
         return [
-            datasets.SplitGenerator(
-                name=datasets.Split.TRAIN,
-                gen_kwargs={"datapath": train_path, "datatype": "train"},
-            ),
-            datasets.SplitGenerator(
-                name=datasets.Split.VALIDATION,
-                gen_kwargs={"datapath": valid_path, "datatype": "valid"},
-            ),
-            datasets.SplitGenerator(
-                name=datasets.Split.TEST,
-                gen_kwargs={"datapath": test_path, "datatype": "test"},
-            ),
+            self._split_generator(dl_manager, split)
+            for split in self.splits
         ]
 
     def _generate_examples(self, datapath, datatype):
@@ -103,6 +111,7 @@ class GraphemeToPhoneme(datasets.GeneratorBasedBuilder):
         for sentence_counter, (item_id, item) in enumerate(data.items()):
             resp = {
                 "id": item_id,
+                "speaker_id": str(item.get("speaker_id") or _NA),
                 "origin": item["origin"],
                 "char": item["char"],
                 "phn": item["phn"],
